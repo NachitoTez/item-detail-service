@@ -30,6 +30,7 @@ public class ItemController {
 
     @PostMapping(consumes = "application/json")
     public ResponseEntity<ItemRS> create(@Valid @RequestBody CreateItemRQ rq) {
+
         ItemRS rs = service.create(rq);
         URI location = ServletUriComponentsBuilder.fromCurrentRequest()
                 .path("/{id}")
@@ -49,6 +50,7 @@ public class ItemController {
             @RequestParam(defaultValue = "20") @Min(1) @Max(200) int size,
             @RequestParam(required = false) String sku
     ) {
+        //TODO esto debería pasarlo al service
         if (sku != null && !sku.isBlank()) {
             return service.list(0, 1).stream()
                     .filter(item -> sku.equals(item.sku()))
