@@ -1,4 +1,4 @@
-package com.ignacioramirez.item_detail_service;
+package com.ignacioramirez.itemDetailService;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;

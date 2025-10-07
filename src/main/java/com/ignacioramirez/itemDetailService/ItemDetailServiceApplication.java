@@ -1,4 +1,4 @@
-package com.ignacioramirez.item_detail_service;
+package com.ignacioramirez.itemDetailService;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
