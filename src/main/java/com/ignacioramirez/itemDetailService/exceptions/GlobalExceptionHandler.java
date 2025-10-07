@@ -43,12 +43,15 @@ public class GlobalExceptionHandler {
         problem.setDetail("One or more fields are invalid.");
 
         var errors = ex.getBindingResult().getFieldErrors().stream()
-                .map(fe -> Map.of(
-                        "field", fe.getField(),
-                        "message", fe.getDefaultMessage(),
-                        "rejectedValue", fe.getRejectedValue()
-                ))
+                .map(fe -> {
+                    var m = new java.util.LinkedHashMap<String, Object>();
+                    m.put("field", fe.getField());
+                    m.put("message", fe.getDefaultMessage());
+                    m.put("rejectedValue", fe.getRejectedValue());
+                    return m;
+                })
                 .toList();
+
 
         problem.setProperty("errors", errors);
         addCommonAttributes(problem, "VALIDATION_ERROR", request);
