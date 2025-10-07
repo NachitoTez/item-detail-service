@@ -16,6 +16,7 @@ import org.mockito.*;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
+import java.time.Clock;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
@@ -30,11 +31,14 @@ class ItemServiceImplTest {
     @Mock
     ItemRepository repo;
 
+    @Mock
+    Clock clock;
+
     ItemServiceImpl service;
 
     @BeforeEach
     void setUp() {
-        service = new ItemServiceImpl(repo);
+        service = new ItemServiceImpl(repo, clock);
     }
 
     // ---------------- create ----------------
@@ -244,8 +248,13 @@ class ItemServiceImplTest {
     @Test
     @DisplayName("applyDiscount: setea descuento y guarda (ventana activa)")
     void applyDiscount_ok() {
+        // Tiempo de referencia fijo para el test
         var nowRef = Instant.parse("2025-10-06T12:00:00Z");
 
+        // Configurar el clock mockeado para devolver nuestro tiempo fijo
+        when(clock.instant()).thenReturn(nowRef);
+
+        // Preparar item
         var item = new ItemBuilder()
                 .id("ID1").sku("SKU").title("T").description("D")
                 .price(new Price("ARS", new BigDecimal("100.00")))
@@ -254,17 +263,21 @@ class ItemServiceImplTest {
         when(repo.findById("ID1")).thenReturn(Optional.of(item));
         when(repo.save(any(Item.class))).thenAnswer(inv -> inv.getArgument(0));
 
+        // Descuento activo: empieza ayer, termina mañana
         Instant starts = nowRef.minus(1, ChronoUnit.DAYS);
         Instant ends   = nowRef.plus(1, ChronoUnit.DAYS);
-
         var rq = new ApplyDiscountRQ("PERCENT", 10L, "10% OFF", starts, ends);
 
+        // Ejecutar
         ItemRS rs = service.applyDiscount("ID1", rq);
 
+        // Verificar interacciones
         verify(repo).findById("ID1");
         verify(repo).save(item);
+        verify(clock).instant(); // Verificar que se usó el clock
         verifyNoMoreInteractions(repo);
 
+        // Verificar estado del item
         var active = item.getActiveDiscount(nowRef);
         assertTrue(active.isPresent());
         var d = active.get();
@@ -274,12 +287,15 @@ class ItemServiceImplTest {
         assertEquals(starts, d.startsAt());
         assertEquals(ends, d.endsAt());
 
+        // Verificar respuesta
         assertNotNull(rs);
-        assertTrue(rs.hasActiveDiscount());
+        assertTrue(rs.hasActiveDiscount(), "Debe tener descuento activo");
         assertNotNull(rs.discount());
         assertEquals("PERCENT", rs.discount().type());
         assertEquals(10L, rs.discount().value());
+        assertTrue(rs.discount().active());
     }
+
 
 
     @Test

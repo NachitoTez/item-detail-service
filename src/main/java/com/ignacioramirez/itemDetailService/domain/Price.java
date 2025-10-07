@@ -17,8 +17,6 @@ public record Price(String currency, BigDecimal amount) {
         if (amount.compareTo(BigDecimal.ZERO) < 0) {
             throw new IllegalArgumentException("amount must be >= 0");
         }
-
-        // Normalizamos el scale a 2 decimales
         amount = amount.setScale(2, RoundingMode.HALF_UP);
     }
 
