@@ -62,21 +62,26 @@ public class FileItemRepository implements ItemRepository {
             lock.writeLock().unlock();
         }
     }
-
     private void tryRestoreBackupOrReset() {
         try {
             if (Files.exists(bakPath)) {
+                System.out.println("Intentando restaurar desde backup: " + bakPath);
                 List<Item> items = mapper.readValue(Files.newBufferedReader(bakPath), new TypeReference<>() {});
+                System.out.println("Items restaurados: " + items.size());
                 byId.clear();
                 bySku.clear();
                 for (Item it : items) {
                     byId.put(it.getId(), it);
                     bySku.put(it.getSku(), it.getId());
                 }
-                persist(); // reescribe principal desde backup
+                persist();
                 return;
             }
-        } catch (Exception ignored) { }
+            System.out.println("No existe archivo de backup");
+        } catch (Exception e) {
+            System.err.println("Error restaurando backup: " + e.getMessage());
+            e.printStackTrace();
+        }
         byId.clear();
         bySku.clear();
         persist();
@@ -84,14 +89,24 @@ public class FileItemRepository implements ItemRepository {
 
     private void persist() {
         try {
-            if (Files.exists(dataPath)) {
-                Files.copy(dataPath, bakPath, StandardCopyOption.REPLACE_EXISTING);
-            }
-            try (var w = Files.newBufferedWriter(tmpPath, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING)) {
+            Files.createDirectories(dataPath.getParent());
+
+            // 1. Escribir a archivo temporal
+            try (var w = Files.newBufferedWriter(tmpPath,
+                    StandardOpenOption.CREATE,
+                    StandardOpenOption.TRUNCATE_EXISTING)) {
                 mapper.writerWithDefaultPrettyPrinter()
                         .writeValue(w, new ArrayList<>(byId.values()));
             }
-            Files.move(tmpPath, dataPath, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+
+            // 2. Copiar el temporal al backup (el contenido NUEVO)
+            Files.copy(tmpPath, bakPath, StandardCopyOption.REPLACE_EXISTING);
+
+            // 3. Mover temporal a principal (atómico)
+            Files.move(tmpPath, dataPath,
+                    StandardCopyOption.ATOMIC_MOVE,
+                    StandardCopyOption.REPLACE_EXISTING);
+
         } catch (IOException e) {
             throw new UncheckedIOException("Failed to persist items.json", e);
         }

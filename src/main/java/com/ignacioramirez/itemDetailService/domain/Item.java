@@ -1,5 +1,9 @@
 package com.ignacioramirez.itemDetailService.domain;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
@@ -11,6 +15,7 @@ public class Item {
     private final String sku;
     private String title;
     private String description;
+    @JsonProperty("price")
     private Price price;
     private Discount discount;
     private int stock;
@@ -22,20 +27,21 @@ public class Item {
     private final List<String> categories;
     private final Map<String, String> attributes;
 
-    Item(String id,
-         String sku,
-         String title,
-         String description,
-         Price price,
-         Discount discount,
-         int stock,
-         String sellerId,
-         List<Picture> pictures,
-         Rating rating,
-         Condition condition,
-         boolean freeShipping,
-         List<String> categories,
-         Map<String, String> attributes) {
+    @JsonCreator
+    Item(@JsonProperty("id") String id,
+         @JsonProperty("sku") String sku,
+         @JsonProperty("title") String title,
+         @JsonProperty("description") String description,
+         @JsonProperty("price") Price price,
+         @JsonProperty("discount") Discount discount,
+         @JsonProperty("stock") int stock,
+         @JsonProperty("sellerId") String sellerId,
+         @JsonProperty("pictures") List<Picture> pictures,
+         @JsonProperty("rating") Rating rating,
+         @JsonProperty("condition") Condition condition,
+         @JsonProperty("freeShipping") boolean freeShipping,
+         @JsonProperty("categories") List<String> categories,
+         @JsonProperty("attributes") Map<String, String> attributes) {
         this.id = id;
         this.sku = sku;
         this.title = title;
@@ -44,14 +50,15 @@ public class Item {
         this.discount = discount;
         this.stock = stock;
         this.sellerId = sellerId;
-        this.pictures = pictures;
-        this.rating = rating;
-        this.condition = condition;
+        this.pictures = pictures != null ? new ArrayList<>(pictures) : new ArrayList<>();
+        this.rating = rating != null ? rating : Rating.empty();
+        this.condition = condition != null ? condition : Condition.NEW;
         this.freeShipping = freeShipping;
-        this.categories = categories;
-        this.attributes = attributes;
+        this.categories = categories != null ? new ArrayList<>(categories) : new ArrayList<>();
+        this.attributes = attributes != null ? new LinkedHashMap<>(attributes) : new LinkedHashMap<>();
     }
 
+    @JsonIgnore
     public Price getBasePrice() { return price; }
 
     public Price getCurrentPrice(Instant now) {
@@ -194,9 +201,11 @@ public class Item {
     public String getSku() { return sku; }
     public String getTitle() { return title; }
     public String getDescription() { return description; }
+    @JsonIgnore
     public Optional<Discount> getDiscountOptional() {
         return Optional.ofNullable(discount);
     }
+    @JsonIgnore
     public Optional<Discount> getActiveDiscount(Instant now) {
         return Optional.ofNullable(discount).filter(d -> d.isActive(now));
     }
