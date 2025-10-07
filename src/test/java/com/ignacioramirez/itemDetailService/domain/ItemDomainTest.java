@@ -11,7 +11,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class ItemDomainTest {
 
-    // Helper para crear montos con scale=2 (igual que Price normaliza)
+    // Helper para crear montos con scale=2
     private static BigDecimal money(String num) {
         return new BigDecimal(num).setScale(2);
     }
