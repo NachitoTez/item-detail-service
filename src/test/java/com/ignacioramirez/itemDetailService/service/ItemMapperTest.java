@@ -80,8 +80,8 @@ class ItemMapperTest {
     // ---------- applyUpdate ----------
 
     @Test
-    @DisplayName("applyUpdate: actualiza título, descripción, precio (con misma moneda) y stock")
-    void applyUpdate_updatesFields() {
+    @DisplayName("applyUpdate: actualiza título, descripción, precio y stock cuando todos están presentes")
+    void applyUpdate_updatesAllFields() {
         Item item = new ItemBuilder()
                 .id("ID1")
                 .sku("SKU-1")
@@ -99,7 +99,7 @@ class ItemMapperTest {
         UpdateItemRQ rq = new UpdateItemRQ(
                 "New title",
                 "New desc",
-                new BigDecimal("250.50"),
+                new PriceRQ("ARS", new BigDecimal("250.50")),
                 7
         );
 
@@ -110,6 +110,157 @@ class ItemMapperTest {
         assertEquals("ARS", item.getBasePrice().currency());
         assertEquals(new BigDecimal("250.50"), item.getBasePrice().amount());
         assertEquals(7, item.getStock());
+    }
+
+    @Test
+    @DisplayName("applyUpdate: actualiza solo el título cuando es el único campo presente")
+    void applyUpdate_updatesOnlyTitle() {
+        Item item = new ItemBuilder()
+                .id("ID1")
+                .sku("SKU-1")
+                .title("Old title")
+                .description("Old desc")
+                .price(new Price("ARS", new BigDecimal("100.00")))
+                .stock(5)
+                .sellerId("SELLER")
+                .build();
+
+        UpdateItemRQ rq = new UpdateItemRQ("New title", null, null, null);
+
+        ItemMapper.applyUpdate(item, rq);
+
+        assertEquals("New title", item.getTitle());
+        // Los demás campos no cambian
+        assertEquals("Old desc", item.getDescription());
+        assertEquals("ARS", item.getBasePrice().currency());
+        assertEquals(new BigDecimal("100.00"), item.getBasePrice().amount());
+        assertEquals(5, item.getStock());
+    }
+
+    @Test
+    @DisplayName("applyUpdate: actualiza solo la descripción cuando es el único campo presente")
+    void applyUpdate_updatesOnlyDescription() {
+        Item item = new ItemBuilder()
+                .id("ID1")
+                .sku("SKU-1")
+                .title("Title")
+                .description("Old desc")
+                .price(new Price("USD", new BigDecimal("50.00")))
+                .stock(3)
+                .sellerId("SELLER")
+                .build();
+
+        UpdateItemRQ rq = new UpdateItemRQ(null, "New description", null, null);
+
+        ItemMapper.applyUpdate(item, rq);
+
+        assertEquals("New description", item.getDescription());
+        // Los demás campos no cambian
+        assertEquals("Title", item.getTitle());
+        assertEquals("USD", item.getBasePrice().currency());
+        assertEquals(new BigDecimal("50.00"), item.getBasePrice().amount());
+        assertEquals(3, item.getStock());
+    }
+
+    @Test
+    @DisplayName("applyUpdate: actualiza solo el precio cuando es el único campo presente")
+    void applyUpdate_updatesOnlyPrice() {
+        Item item = new ItemBuilder()
+                .id("ID1")
+                .sku("SKU-1")
+                .title("Title")
+                .description("Desc")
+                .price(new Price("ARS", new BigDecimal("100.00")))
+                .stock(10)
+                .sellerId("SELLER")
+                .build();
+
+        UpdateItemRQ rq = new UpdateItemRQ(null, null, new PriceRQ("USD", new BigDecimal("75.00")), null);
+
+        ItemMapper.applyUpdate(item, rq);
+
+        assertEquals("USD", item.getBasePrice().currency());
+        assertEquals(new BigDecimal("75.00"), item.getBasePrice().amount());
+        // Los demás campos no cambian
+        assertEquals("Title", item.getTitle());
+        assertEquals("Desc", item.getDescription());
+        assertEquals(10, item.getStock());
+    }
+
+    @Test
+    @DisplayName("applyUpdate: actualiza solo el stock cuando es el único campo presente")
+    void applyUpdate_updatesOnlyStock() {
+        Item item = new ItemBuilder()
+                .id("ID1")
+                .sku("SKU-1")
+                .title("Title")
+                .description("Desc")
+                .price(new Price("ARS", new BigDecimal("100.00")))
+                .stock(5)
+                .sellerId("SELLER")
+                .build();
+
+        UpdateItemRQ rq = new UpdateItemRQ(null, null, null, 20);
+
+        ItemMapper.applyUpdate(item, rq);
+
+        assertEquals(20, item.getStock());
+        // Los demás campos no cambian
+        assertEquals("Title", item.getTitle());
+        assertEquals("Desc", item.getDescription());
+        assertEquals("ARS", item.getBasePrice().currency());
+        assertEquals(new BigDecimal("100.00"), item.getBasePrice().amount());
+    }
+
+    @Test
+    @DisplayName("applyUpdate: no hace cambios cuando todos los campos son null")
+    void applyUpdate_noChangesWhenAllFieldsNull() {
+        Item item = new ItemBuilder()
+                .id("ID1")
+                .sku("SKU-1")
+                .title("Original title")
+                .description("Original desc")
+                .price(new Price("ARS", new BigDecimal("100.00")))
+                .stock(5)
+                .sellerId("SELLER")
+                .build();
+
+        UpdateItemRQ rq = new UpdateItemRQ(null, null, null, null);
+
+        ItemMapper.applyUpdate(item, rq);
+
+        // Nada debería haber cambiado
+        assertEquals("Original title", item.getTitle());
+        assertEquals("Original desc", item.getDescription());
+        assertEquals("ARS", item.getBasePrice().currency());
+        assertEquals(new BigDecimal("100.00"), item.getBasePrice().amount());
+        assertEquals(5, item.getStock());
+    }
+
+    @Test
+    @DisplayName("applyUpdate: actualiza múltiples campos pero no todos")
+    void applyUpdate_updatesPartialFields() {
+        Item item = new ItemBuilder()
+                .id("ID1")
+                .sku("SKU-1")
+                .title("Old title")
+                .description("Old desc")
+                .price(new Price("ARS", new BigDecimal("100.00")))
+                .stock(5)
+                .sellerId("SELLER")
+                .build();
+
+        // Solo actualiza título y stock
+        UpdateItemRQ rq = new UpdateItemRQ("New title", null, null, 15);
+
+        ItemMapper.applyUpdate(item, rq);
+
+        assertEquals("New title", item.getTitle());
+        assertEquals(15, item.getStock());
+        // Estos no cambian
+        assertEquals("Old desc", item.getDescription());
+        assertEquals("ARS", item.getBasePrice().currency());
+        assertEquals(new BigDecimal("100.00"), item.getBasePrice().amount());
     }
 
     // ---------- toRS ----------

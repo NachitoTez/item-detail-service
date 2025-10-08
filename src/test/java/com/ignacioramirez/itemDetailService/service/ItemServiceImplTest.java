@@ -178,8 +178,12 @@ class ItemServiceImplTest {
         when(repo.findById("ID1")).thenReturn(Optional.of(item));
         when(repo.save(any(Item.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        var rq = new UpdateItemRQ("New title", "New desc", new BigDecimal("25.50"), 7);
-
+        UpdateItemRQ rq = new UpdateItemRQ(
+                "New title",
+                "New desc",
+                new PriceRQ("ARS", new BigDecimal("25.50")),
+                7
+        );
         ItemRS rs = service.update("ID1", rq);
 
         verify(repo).findById("ID1");
@@ -201,7 +205,7 @@ class ItemServiceImplTest {
     @DisplayName("update: NotFound si no existe el item")
     void update_notFound() {
         when(repo.findById("ID1")).thenReturn(Optional.empty());
-        var rq = new UpdateItemRQ("T", "D", new BigDecimal("1.00"), 1);
+        var rq = new UpdateItemRQ("T", "D", new PriceRQ("ARS",new BigDecimal("1.00")), 1);
 
         assertThrows(NotFoundException.class, () -> service.update("ID1", rq));
         verify(repo).findById("ID1");

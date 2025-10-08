@@ -32,10 +32,25 @@ public class ItemMapper {
     }
 
     public static void applyUpdate(Item item, UpdateItemRQ rq) {
-        item.changeTitle(rq.title());
-        item.changeDescription(rq.description());
-        item.changeBasePrice(new Price(item.getBasePrice().currency(), rq.amount()));
-        item.setStock(rq.stock());
+        if (rq.title() != null) {
+            item.changeTitle(rq.title());
+        }
+
+        if (rq.description() != null) {
+            item.changeDescription(rq.description());
+        }
+
+        if (rq.price() != null) {
+            Price newPrice = new Price(
+                    rq.price().currency().toUpperCase(),
+                    rq.price().amount()
+            );
+            item.changeBasePrice(newPrice);
+        }
+
+        if (rq.stock() != null) {
+            item.setStock(rq.stock());
+        }
     }
 
     // ---------- Domain -> Responses ----------

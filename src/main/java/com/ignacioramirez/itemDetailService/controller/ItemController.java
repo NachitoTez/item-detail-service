@@ -36,8 +36,6 @@ public class ItemController {
     public ResponseEntity<ItemRS> create(@Valid @RequestBody CreateItemRQ rq) {
         LOGGER.info("POST /items requested with sku='{}'", rq.sku());
 
-        //TODO tengo que desaplanar la request
-
         ItemRS rs = service.create(rq);
         URI location = ServletUriComponentsBuilder.fromCurrentRequest()
                 .path("/{id}")
