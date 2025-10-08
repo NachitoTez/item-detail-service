@@ -37,7 +37,6 @@ class ItemControllerTest {
 
     @Autowired ItemService service;
 
-    // ---------- POST /items ----------
     @Test
     @DisplayName("POST /items crea: 201 y Location /items/{id}")
     void create_ok_setsLocation() throws Exception {
@@ -46,20 +45,22 @@ class ItemControllerTest {
         when(service.create(any())).thenReturn(rs);
 
         String body = """
-          {
-            "sku":"SKU-1",
-            "title":"Lightsaber",
-            "description":"Blue saber",
-            "currency":"ARS",
-            "amount": 1000,
-            "stock": 5,
-            "sellerId":"OBI-WAN",
-            "condition":"NEW",
-            "freeShipping": true,
-            "categories": ["Jedi","Weapons"],
-            "attributes": {"color":"blue"}
-          }
-        """;
+      {
+        "sku":"SKU-1",
+        "title":"Lightsaber",
+        "description":"Blue saber",
+        "price": {
+          "currency":"ARS",
+          "amount": 1000
+        },
+        "stock": 5,
+        "sellerId":"OBI-WAN",
+        "condition":"NEW",
+        "freeShipping": true,
+        "categories": ["Jedi","Weapons"],
+        "attributes": {"color":"blue"}
+      }
+    """;
 
         mockMvc.perform(post("/items")
                         .contentType(MediaType.APPLICATION_JSON)

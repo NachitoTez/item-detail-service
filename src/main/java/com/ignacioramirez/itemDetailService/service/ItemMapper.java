@@ -16,13 +16,12 @@ public class ItemMapper {
     // ---------- Commands -> Domain ----------
     public static Item toNewDomain(CreateItemRQ rq) {
         String condition = Objects.requireNonNull(rq.condition(), "condition").toUpperCase(Locale.ROOT);
-        String currency  = Objects.requireNonNull(rq.currency(),  "currency").toUpperCase(Locale.ROOT);
 
         return new ItemBuilder()
                 .sku(rq.sku())
                 .title(rq.title())
                 .description(rq.description())
-                .price(new Price(currency, rq.amount()))
+                .price(new Price(rq.price().currency().toUpperCase(), rq.price().amount()))
                 .stock(rq.stock())
                 .sellerId(rq.sellerId())
                 .condition(Condition.valueOf(condition))

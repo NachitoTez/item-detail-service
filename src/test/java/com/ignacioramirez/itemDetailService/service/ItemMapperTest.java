@@ -2,6 +2,7 @@ package com.ignacioramirez.itemDetailService.service;
 
 import com.ignacioramirez.itemDetailService.domain.*;
 import com.ignacioramirez.itemDetailService.dto.items.request.CreateItemRQ;
+import com.ignacioramirez.itemDetailService.dto.items.request.PriceRQ;
 import com.ignacioramirez.itemDetailService.dto.items.request.UpdateItemRQ;
 import com.ignacioramirez.itemDetailService.dto.items.response.*;
 import org.junit.jupiter.api.DisplayName;
@@ -26,8 +27,7 @@ class ItemMapperTest {
                 "SKU-1",
                 "Lightsaber",
                 "Blue saber",
-                "ars",
-                new BigDecimal("1000.00"),
+                new PriceRQ("ars", new BigDecimal("1000.00")),
                 5,
                 "OBI-WAN",
                 "new",
@@ -50,6 +50,31 @@ class ItemMapperTest {
         assertTrue(item.isFreeShipping());
         assertTrue(item.getCategories().isEmpty());
         assertTrue(item.getAttributes().isEmpty());
+    }
+
+    @Test
+    @DisplayName("toNewDomain: mapea correctamente categories y attributes cuando están presentes")
+    void toNewDomain_withCategoriesAndAttributes() {
+        CreateItemRQ rq = new CreateItemRQ(
+                "SKU-2",
+                "Item",
+                "Description",
+                new PriceRQ("USD", new BigDecimal("99.99")),
+                10,
+                "SELLER-123",
+                "USED",
+                false,
+                List.of("Electronics", "Gaming"),
+                Map.of("brand", "Sony", "color", "Black")
+        );
+
+        Item item = ItemMapper.toNewDomain(rq);
+
+        assertEquals(List.of("Electronics", "Gaming"), item.getCategories());
+        assertEquals(Map.of("brand", "Sony", "color", "Black"), item.getAttributes());
+        assertEquals("USD", item.getBasePrice().currency());
+        assertEquals(Condition.USED, item.getCondition());
+        assertFalse(item.isFreeShipping());
     }
 
     // ---------- applyUpdate ----------
@@ -108,7 +133,6 @@ class ItemMapperTest {
                 .build();
 
         Instant now = Instant.parse("2025-10-06T12:00:00Z");
-
         ItemRS rs = ItemMapper.toRS(item, now);
 
         assertNotNull(rs);
@@ -148,10 +172,8 @@ class ItemMapperTest {
     @DisplayName("toRS: con descuento PERCENT activo -> currentPrice aplica porcentaje y DiscountRS mapeado")
     void toRS_withPercentDiscountActive() {
         Price base = new Price("ARS", new BigDecimal("1000.00"));
-
         Instant starts = Instant.now().minus(1, ChronoUnit.DAYS);
         Instant ends   = Instant.now().plus(1, ChronoUnit.DAYS);
-
         Discount discount = new Discount(DiscountType.PERCENT, 10L, "10% OFF", starts, ends);
 
         Item item = new ItemBuilder()
@@ -174,11 +196,11 @@ class ItemMapperTest {
                 .build();
 
         Instant now = Instant.now();
-
         ItemRS rs = ItemMapper.toRS(item, now);
 
         assertEquals(new BigDecimal("1000.00"), rs.basePrice().amount());
         assertEquals("ARS", rs.basePrice().currency());
+
         // 10% OFF => 900.00
         assertEquals(new BigDecimal("900.00"), rs.currentPrice().amount());
         assertEquals("ARS", rs.currentPrice().currency());
@@ -224,6 +246,7 @@ class ItemMapperTest {
 
         assertEquals(new BigDecimal("0.00"), rs.currentPrice().amount());
         assertEquals("USD", rs.currentPrice().currency());
+
         assertTrue(rs.hasActiveDiscount());
         assertTrue(rs.discount().active());
         assertEquals("AMOUNT", rs.discount().type());
@@ -293,5 +316,4 @@ class ItemMapperTest {
         var rsInactive = (DiscountRS) m.invoke(null, d, Instant.parse("2025-10-11T00:00:00Z"));
         assertFalse(rsInactive.active());
     }
-
 }
