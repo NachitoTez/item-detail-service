@@ -291,4 +291,14 @@ public class GlobalExceptionHandler {
         shapeProblem(problem, "UNEXPECTED_ERROR");
         return problem;
     }
+
+    @ExceptionHandler(IllegalArgumentException.class)
+    ProblemDetail handleIllegalArgument(IllegalArgumentException ex, HttpServletRequest request) {
+        LOGGER.warn("INVALID_ARGUMENT in {} {}: {}", request.getMethod(), request.getRequestURI(), ex.getMessage());
+        ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.BAD_REQUEST);
+        problem.setTitle("Invalid Argument");
+        problem.setDetail(ex.getMessage());
+        shapeProblem(problem, "INVALID_ARGUMENT");
+        return problem;
+    }
 }

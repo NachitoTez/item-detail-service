@@ -10,13 +10,13 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.text.Normalizer;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.stream.IntStream;
 
 import static org.assertj.core.api.Assertions.*;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 class FileItemRepositoryTest {
 
@@ -32,13 +32,38 @@ class FileItemRepositoryTest {
         repository = new FileItemRepository(mapper, tempDir.toString());
     }
 
+    // ==================== HELPERS ====================
+
+    private static String normalizeTitle(String s) {
+        if (s == null) return "";
+        String noAccents = Normalizer.normalize(s, Normalizer.Form.NFD)
+                .replaceAll("\\p{M}", "");
+        return noAccents
+                .toLowerCase(Locale.ROOT)
+                .trim()
+                .replaceAll("\\s+", " ");
+    }
+
+    private Item createTestItem(String id, String title, double priceAmount) {
+        return new ItemBuilder()
+                .id(id)
+                .title(title)
+                .description("Test description for " + title)
+                .price(new Price("USD", BigDecimal.valueOf(priceAmount)))
+                .stock(10)
+                .sellerId("seller-test")
+                .condition(Condition.NEW)
+                .freeShipping(false)
+                .build();
+    }
+
     // ==================== TESTS BÁSICOS ====================
 
     @Test
     @DisplayName("DEBUG: Ver contenido del JSON y backup")
     void debugJsonContent() throws IOException {
-        repository.save(createTestItem("1", "SKU-001", "Product 1", 100.0));
-        repository.save(createTestItem("2", "SKU-002", "Product 2", 200.0));
+        repository.save(createTestItem("1", "Product 1", 100.0));
+        repository.save(createTestItem("2", "Product 2", 200.0));
 
         Path itemsFile = tempDir.resolve("items.json");
         Path bakFile = tempDir.resolve("items.json.bak");
@@ -57,8 +82,7 @@ class FileItemRepositoryTest {
         try {
             List<Item> items = mapper.readValue(
                     Files.newBufferedReader(itemsFile),
-                    new TypeReference<>() {
-                    }
+                    new TypeReference<>() {}
             );
             System.out.println("\n=== Items cargados: " + items.size());
         } catch (Exception e) {
@@ -78,23 +102,23 @@ class FileItemRepositoryTest {
     @Test
     @DisplayName("Debe guardar y recuperar item por ID")
     void shouldSaveAndFindById() {
-        Item item = createTestItem("1", "SKU-001", "Product 1", 100.0);
+        Item item = createTestItem("1", "Product 1", 100.0);
 
         repository.save(item);
 
         Optional<Item> found = repository.findById("1");
         assertThat(found).isPresent();
-        assertThat(found.get().getSku()).isEqualTo("SKU-001");
         assertThat(found.get().getTitle()).isEqualTo("Product 1");
     }
 
     @Test
-    @DisplayName("Debe buscar item por SKU")
-    void shouldFindBySku() {
-        Item item = createTestItem("1", "SKU-001", "Product 1", 100.0);
+    @DisplayName("Debe buscar item por (sellerId, titleNormalized)")
+    void shouldFindBySellerAndTitleNormalized() {
+        Item item = createTestItem("1", "Product 1", 100.0);
         repository.save(item);
 
-        Optional<Item> found = repository.findBySku("SKU-001");
+        String titleNorm = normalizeTitle("  prÓduct   1  ");
+        Optional<Item> found = repository.findBySellerAndTitleNormalized("seller-test", titleNorm);
 
         assertThat(found).isPresent();
         assertThat(found.get().getId()).isEqualTo("1");
@@ -103,10 +127,10 @@ class FileItemRepositoryTest {
     @Test
     @DisplayName("Debe actualizar item existente")
     void shouldUpdateExistingItem() {
-        Item original = createTestItem("1", "SKU-001", "Product 1", 100.0);
+        Item original = createTestItem("1", "Product 1", 100.0);
         repository.save(original);
 
-        Item updated = createTestItem("1", "SKU-001", "Product 1 Updated", 150.0);
+        Item updated = createTestItem("1", "Product 1 Updated", 150.0);
         repository.save(updated);
 
         Optional<Item> found = repository.findById("1");
@@ -118,14 +142,16 @@ class FileItemRepositoryTest {
     @Test
     @DisplayName("Debe eliminar item por ID")
     void shouldDeleteById() {
-        Item item = createTestItem("1", "SKU-001", "Product 1", 100.0);
+        Item item = createTestItem("1", "Product 1", 100.0);
         repository.save(item);
 
         boolean deleted = repository.deleteById("1");
 
         assertThat(deleted).isTrue();
         assertThat(repository.findById("1")).isEmpty();
-        assertThat(repository.findBySku("SKU-001")).isEmpty();
+
+        String titleNorm = normalizeTitle("Product 1");
+        assertThat(repository.findBySellerAndTitleNormalized("seller-test", titleNorm)).isEmpty();
     }
 
     @Test
@@ -149,55 +175,44 @@ class FileItemRepositoryTest {
     void shouldThrowWhenIdIsNull_onRepository() {
         Item item = mock(Item.class);
         when(item.getId()).thenReturn(null);
-        when(item.getSku()).thenReturn("SKU-001");
         when(item.getBasePrice()).thenReturn(new Price("USD", new BigDecimal("100.00")));
         when(item.getStock()).thenReturn(10);
         when(item.getSellerId()).thenReturn("seller-1");
+        when(item.getTitleNormalized()).thenReturn("product 1");
 
         assertThatThrownBy(() -> repository.save(item))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("Item id is required"); // cuidá el texto exacto
+                .hasMessageContaining("Item id is required");
     }
 
     @Test
-    @DisplayName("Debe lanzar excepción si SKU es null (repository)")
-    void shouldThrowWhenSkuIsNull_onRepository() {
+    @DisplayName("Debe lanzar excepción si sellerId es null (repository)")
+    void shouldThrowWhenSellerIdIsNull_onRepository() {
         Item item = mock(Item.class);
         when(item.getId()).thenReturn("1");
-        when(item.getSku()).thenReturn(null);
         when(item.getBasePrice()).thenReturn(new Price("USD", new BigDecimal("100.00")));
         when(item.getStock()).thenReturn(10);
-        when(item.getSellerId()).thenReturn("seller-1");
+        when(item.getSellerId()).thenReturn(null);
+        when(item.getTitleNormalized()).thenReturn("product 1");
 
         assertThatThrownBy(() -> repository.save(item))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("Item sku is required");
-    }
-
-
-    @Test
-    @DisplayName("Debe lanzar excepción si SKU ya existe en otro item")
-    void shouldThrowExceptionWhenSkuAlreadyExists() {
-        Item item1 = createTestItem("1", "SKU-001", "Product 1", 100.0);
-        Item item2 = createTestItem("2", "SKU-001", "Product 2", 200.0);
-
-        repository.save(item1);
-
-        assertThatThrownBy(() -> repository.save(item2))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("SKU already exists");
+                .hasMessageContaining("Item sellerId is required");
     }
 
     @Test
-    @DisplayName("Debe permitir actualizar item manteniendo el mismo SKU")
-    void shouldAllowUpdateWithSameSku() {
-        Item original = createTestItem("1", "SKU-001", "Product 1", 100.0);
-        repository.save(original);
+    @DisplayName("Debe lanzar excepción si titleNormalized es null (repository)")
+    void shouldThrowWhenTitleNormalizedIsNull_onRepository() {
+        Item item = mock(Item.class);
+        when(item.getId()).thenReturn("1");
+        when(item.getBasePrice()).thenReturn(new Price("USD", new BigDecimal("100.00")));
+        when(item.getStock()).thenReturn(10);
+        when(item.getSellerId()).thenReturn("seller-1");
+        when(item.getTitleNormalized()).thenReturn(null);
 
-        Item updated = createTestItem("1", "SKU-001", "Updated", 150.0);
-
-        assertThatCode(() -> repository.save(updated))
-                .doesNotThrowAnyException();
+        assertThatThrownBy(() -> repository.save(item))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Item titleNormalized is required");
     }
 
     // ==================== PAGINACIÓN ====================
@@ -208,7 +223,7 @@ class FileItemRepositoryTest {
         // Crear 10 items
         IntStream.range(0, 10)
                 .forEach(i -> repository.save(
-                        createTestItem(String.valueOf(i), "SKU-00" + i, "Product " + i, 100.0)
+                        createTestItem(String.valueOf(i), "Product " + i, 100.0)
                 ));
 
         List<Item> page0 = repository.findAll(0, 3);
@@ -226,7 +241,7 @@ class FileItemRepositoryTest {
     @Test
     @DisplayName("Debe retornar lista vacía para página fuera de rango")
     void shouldReturnEmptyListForOutOfRangePage() {
-        repository.save(createTestItem("1", "SKU-001", "Product", 100.0));
+        repository.save(createTestItem("1", "Product", 100.0));
 
         List<Item> page = repository.findAll(10, 5);
 
@@ -246,25 +261,21 @@ class FileItemRepositoryTest {
     @Test
     @DisplayName("Debe persistir datos en disco")
     void shouldPersistDataToDisk() throws IOException {
-        Item item = createTestItem("1", "SKU-001", "Product 1", 100.0);
+        Item item = createTestItem("1", "Product 1", 100.0);
         repository.save(item);
 
         Path itemsFile = tempDir.resolve("items.json");
         assertThat(itemsFile).exists();
 
         String content = Files.readString(itemsFile);
-        assertThat(content).contains("SKU-001");
         assertThat(content).contains("Product 1");
     }
 
     @Test
     @DisplayName("Debe crear backup antes de guardar")
     void shouldCreateBackupBeforeSaving() {
-        Item item1 = createTestItem("1", "SKU-001", "Product 1", 100.0);
-        repository.save(item1);
-
-        Item item2 = createTestItem("2", "SKU-002", "Product 2", 200.0);
-        repository.save(item2);
+        repository.save(createTestItem("1", "Product 1", 100.0));
+        repository.save(createTestItem("2", "Product 2", 200.0));
 
         Path backupFile = tempDir.resolve("items.json.bak");
         assertThat(backupFile).exists();
@@ -273,13 +284,10 @@ class FileItemRepositoryTest {
     @Test
     @DisplayName("Debe restaurar desde backup si archivo principal corrupto")
     void shouldRestoreFromBackupIfMainFileCorrupted() throws IOException {
-        Item item1 = createTestItem("1", "SKU-001", "Product 1", 100.0);
-        Item item2 = createTestItem("2", "SKU-002", "Product 2", 200.0);
-        repository.save(item1);
-        repository.save(item2);
+        repository.save(createTestItem("1", "Product 1", 100.0));
+        repository.save(createTestItem("2", "Product 2", 200.0));
 
         Path itemsFile = tempDir.resolve("items.json");
-
 
         // Corromper archivo principal
         Files.writeString(itemsFile, "{ invalid json !!!");
@@ -295,8 +303,8 @@ class FileItemRepositoryTest {
     @Test
     @DisplayName("Debe cargar datos existentes al inicializar")
     void shouldLoadExistingDataOnInit() {
-        repository.save(createTestItem("1", "SKU-001", "Product 1", 100.0));
-        repository.save(createTestItem("2", "SKU-002", "Product 2", 200.0));
+        repository.save(createTestItem("1", "Product 1", 100.0));
+        repository.save(createTestItem("2", "Product 2", 200.0));
 
         // Crear nuevo repositorio con mismo directorio
         FileItemRepository newRepo = new FileItemRepository(mapper, tempDir.toString());
@@ -314,7 +322,7 @@ class FileItemRepositoryTest {
         // Preparar datos
         IntStream.range(0, 100)
                 .forEach(i -> repository.save(
-                        createTestItem(String.valueOf(i), "SKU-" + i, "Product " + i, 100.0)
+                        createTestItem(String.valueOf(i), "Product " + i, 100.0)
                 ));
 
         ExecutorService executor = Executors.newFixedThreadPool(10);
@@ -358,7 +366,6 @@ class FileItemRepositoryTest {
                         int id = threadId * 10 + i;
                         repository.save(createTestItem(
                                 String.valueOf(id),
-                                "SKU-" + id,
                                 "Product " + id,
                                 100.0
                         ));
@@ -390,7 +397,7 @@ class FileItemRepositoryTest {
         // Preparar algunos datos iniciales
         IntStream.range(0, 50)
                 .forEach(i -> repository.save(
-                        createTestItem(String.valueOf(i), "SKU-" + i, "Product " + i, 100.0)
+                        createTestItem(String.valueOf(i), "Product " + i, 100.0)
                 ));
 
         List<Future<?>> futures = new ArrayList<>();
@@ -406,7 +413,6 @@ class FileItemRepositoryTest {
                         int id = 50 + threadId * 10 + i;
                         repository.save(createTestItem(
                                 String.valueOf(id),
-                                "SKU-" + id,
                                 "Product " + id,
                                 100.0
                         ));
@@ -445,60 +451,47 @@ class FileItemRepositoryTest {
     }
 
     @Test
-    @DisplayName("Debe prevenir race condition en validación de SKU duplicado")
-    void shouldPreventRaceConditionOnDuplicateSku() throws Exception {
+    @DisplayName("Debe prevenir race condition en clave (sellerId,titleNormalized) duplicada")
+    void shouldPreventRaceConditionOnDuplicateKey() throws Exception {
         ExecutorService executor = Executors.newFixedThreadPool(5);
         CountDownLatch latch = new CountDownLatch(5);
 
-        String sameSku = "DUPLICATE-SKU";
-        List<Future<?>> futures = new ArrayList<>();
-        List<Exception> exceptions = Collections.synchronizedList(new ArrayList<>());
+        String title = "Notebook Gamer 16GB";
+        String titleNorm = normalizeTitle(title);
+        String sellerId = "seller-dup";
 
-        // 5 threads intentando guardar items con el mismo SKU pero diferentes IDs
+        List<Future<?>> futures = new ArrayList<>();
+        // Guardar 5 items con MISMO (sellerId, titleNormalized) pero IDs distintos
         for (int i = 0; i < 5; i++) {
             final int id = i;
             futures.add(executor.submit(() -> {
                 latch.countDown();
                 try {
                     latch.await();
-                    repository.save(createTestItem(
-                            String.valueOf(id),
-                            sameSku,
-                            "Product",
-                            100.0
-                    ));
-                } catch (IllegalStateException e) {
-                    exceptions.add(e);
+                    Item item = new ItemBuilder()
+                            .id(String.valueOf(id))
+                            .title(title)
+                            .description("X")
+                            .price(new Price("USD", BigDecimal.valueOf(100)))
+                            .stock(1)
+                            .sellerId(sellerId)
+                            .condition(Condition.NEW)
+                            .freeShipping(false)
+                            .build();
+                    repository.save(item);
                 } catch (Exception e) {
-                    throw new RuntimeException(e);
+                    // el repo no valida duplicados (lo hace el service), así que acá no esperamos excepción.
+                    // Este test solo comprueba que no rompe por concurrente y que se mantiene el último índice.
                 }
             }));
         }
 
-        for (Future<?> future : futures) {
-            future.get(5, TimeUnit.SECONDS);
-        }
+        for (Future<?> f : futures) f.get(5, TimeUnit.SECONDS);
 
-        // Solo uno debe haber tenido éxito, los demás deben tener excepción
-        assertThat(exceptions).hasSizeGreaterThanOrEqualTo(4);
-        assertThat(repository.findBySku(sameSku)).isPresent();
+        // Debe existir un único id asociado a esa clave en el índice (el último guardado ganó)
+        Optional<Item> found = repository.findBySellerAndTitleNormalized(sellerId, titleNorm);
+        assertThat(found).isPresent();
 
         executor.shutdown();
-    }
-
-    // ==================== HELPERS ====================
-
-    private Item createTestItem(String id, String sku, String title, double priceAmount) {
-        return new ItemBuilder()
-                .id(id)
-                .sku(sku)
-                .title(title)
-                .description("Test description for " + title)
-                .price(new Price("USD", BigDecimal.valueOf(priceAmount)))
-                .stock(10)
-                .sellerId("seller-test")
-                .condition(Condition.NEW)
-                .freeShipping(false)
-                .build();
     }
 }

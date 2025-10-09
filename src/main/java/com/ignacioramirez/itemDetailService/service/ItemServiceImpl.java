@@ -5,16 +5,19 @@ import com.ignacioramirez.itemDetailService.dto.items.request.ApplyDiscountRQ;
 import com.ignacioramirez.itemDetailService.dto.items.request.CreateItemRQ;
 import com.ignacioramirez.itemDetailService.dto.items.request.UpdateItemRQ;
 import com.ignacioramirez.itemDetailService.dto.items.response.ItemRS;
+import com.ignacioramirez.itemDetailService.exceptions.ApiException;
 import com.ignacioramirez.itemDetailService.exceptions.ConflictException;
 import com.ignacioramirez.itemDetailService.exceptions.NotFoundException;
 import com.ignacioramirez.itemDetailService.repository.ItemRepository;
+import com.ignacioramirez.itemDetailService.service.utils.Texts;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 import java.time.Clock;
 import java.time.Instant;
-import java.util.List;
+import java.util.*;
 
 @Service
 public class ItemServiceImpl implements ItemService {
@@ -29,21 +32,30 @@ public class ItemServiceImpl implements ItemService {
         this.clock = clock;
     }
 
+    // ----------------------- CREATE -----------------------
     @Override
     public ItemRS create(CreateItemRQ rq) {
-        LOGGER.info("Creating item with sku='{}'", rq.sku());
+        LOGGER.info("Creating item with title='{}' from {}", rq.title(), rq.sellerId());
 
-        repo.findBySku(rq.sku()).ifPresent(existing -> {
-            throw new ConflictException("SKU already exists");
+        String titleNorm = Texts.normalizeTitle(rq.title());
+
+        repo.findBySellerAndTitleNormalized(rq.sellerId(), titleNorm).ifPresent(existing -> {
+            throw new ConflictException("Duplicate listing: same title already published by this seller");
         });
+
         Item item = ItemMapper.toNewDomain(rq);
         item.validate();
-        Item saved = repo.save(item);
 
-        LOGGER.info("Item created successfully with id='{}'", saved.getId());
-        return ItemMapper.toRS(saved, clock.instant());
+        try {
+            Item saved = repo.save(item);
+            LOGGER.info("Item created successfully with id='{}'", saved.getId());
+            return ItemMapper.toRS(saved, clock.instant());
+        } catch (IllegalStateException e) {
+            throw new ConflictException("Duplicate listing: same title already published by this seller");
+        }
     }
 
+    // ----------------------- READ -----------------------
     @Override
     public ItemRS getById(String id) {
         LOGGER.info("Retrieving item with id='{}'", id);
@@ -68,6 +80,7 @@ public class ItemServiceImpl implements ItemService {
                 .toList();
     }
 
+    // ----------------------- UPDATE -----------------------
     @Override
     public ItemRS update(String id, UpdateItemRQ rq) {
         LOGGER.info("Updating item with id='{}'", id);
@@ -75,14 +88,34 @@ public class ItemServiceImpl implements ItemService {
         Item item = repo.findById(id)
                 .orElseThrow(() -> new NotFoundException("Item not found"));
 
-        ItemMapper.applyUpdate(item, rq);
-        item.validate();
-        Item saved = repo.save(item);
+        String oldNorm = item.getTitleNormalized();
 
-        LOGGER.info("Item updated successfully with id='{}'", id);
-        return ItemMapper.toRS(saved, clock.instant());
+        ItemMapper.applyUpdate(item, rq);
+
+        if (rq.title() != null) {
+            String newNorm = Texts.normalizeTitle(item.getTitle());
+
+            if (!Objects.equals(oldNorm, newNorm)) {
+                repo.findBySellerAndTitleNormalized(item.getSellerId(), newNorm).ifPresent(existing -> {
+                    if (!existing.getId().equals(item.getId())) {
+                        throw new ConflictException("Duplicate listing: same title already published by this seller");
+                    }
+                });
+            }
+        }
+
+        item.validate();
+
+        try {
+            Item saved = repo.save(item);
+            LOGGER.info("Item updated successfully with id='{}'", id);
+            return ItemMapper.toRS(saved, clock.instant());
+        } catch (IllegalStateException e) {
+            throw new ConflictException("Duplicate listing: same title already published by this seller");
+        }
     }
 
+    // ----------------------- DELETE -----------------------
     @Override
     public void delete(String id) {
         LOGGER.info("Deleting item with id='{}'", id);
@@ -95,6 +128,7 @@ public class ItemServiceImpl implements ItemService {
         LOGGER.info("Item deleted successfully with id='{}'", id);
     }
 
+    // ----------------------- RATING -----------------------
     @Override
     public ItemRS rate(String id, int stars) {
         LOGGER.info("Rating item with id='{}' with {} stars", id, stars);
@@ -103,12 +137,13 @@ public class ItemServiceImpl implements ItemService {
                 .orElseThrow(() -> new NotFoundException("Item not found"));
 
         item.updateRating(stars);
-        Item saved = repo.save(item);
 
+        Item saved = repo.save(item);
         LOGGER.info("Item rated successfully with id='{}'", id);
         return ItemMapper.toRS(saved, clock.instant());
     }
 
+    // ----------------------- DISCOUNT -----------------------
     @Override
     public ItemRS applyDiscount(String id, ApplyDiscountRQ rq) {
         LOGGER.info("Applying discount to item with id='{}', type={}, value={}", id, rq.type(), rq.value());
@@ -116,16 +151,25 @@ public class ItemServiceImpl implements ItemService {
         Item item = repo.findById(id)
                 .orElseThrow(() -> new NotFoundException("Item not found"));
 
+        DiscountType type = parseDiscountType(rq.type());
+
+        if (type == DiscountType.PERCENT && (rq.value() < 0 || rq.value() > 100)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_DISCOUNT", "percent 0..100");
+        }
+        if (type == DiscountType.AMOUNT && rq.value() < 0) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_DISCOUNT", "amount must be >= 0");
+        }
+
         Discount discount = new Discount(
-                DiscountType.valueOf(rq.type()),
+                type,
                 rq.value(),
                 rq.label(),
                 rq.startsAt(),
                 rq.endsAt()
         );
         item.applyDiscount(discount);
-        Item saved = repo.save(item);
 
+        Item saved = repo.save(item);
         LOGGER.info("Discount applied successfully to item with id='{}'", id);
         return ItemMapper.toRS(saved, clock.instant());
     }
@@ -136,10 +180,28 @@ public class ItemServiceImpl implements ItemService {
 
         Item item = repo.findById(id)
                 .orElseThrow(() -> new NotFoundException("Item not found"));
-        item.clearDiscount();
-        Item saved = repo.save(item);
 
+        item.clearDiscount();
+
+        Item saved = repo.save(item);
         LOGGER.info("Discount cleared successfully from item with id='{}'", id);
         return ItemMapper.toRS(saved, clock.instant());
+    }
+
+    // ----------------------- Helpers -----------------------
+
+
+    private static DiscountType parseDiscountType(String raw) {
+        List<String> allowed = Arrays.stream(DiscountType.values()).map(Enum::name).toList();
+        if (raw == null || raw.isBlank()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "ENUM_INVALID",
+                    "Field 'type' must be one of: " + String.join(", ", allowed));
+        }
+        try {
+            return DiscountType.valueOf(raw.trim().toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException e) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "ENUM_INVALID",
+                    "Field 'type' must be one of: " + String.join(", ", allowed));
+        }
     }
 }

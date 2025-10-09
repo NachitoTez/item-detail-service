@@ -17,7 +17,6 @@ class ItemBuilderTest {
 
     private ItemBuilder base() {
         return new ItemBuilder()
-                .sku("SKU-1")
                 .title("title")
                 .description("desc")
                 .price(new Price("ARS", BigDecimal.valueOf(10000)))
@@ -30,7 +29,6 @@ class ItemBuilderTest {
         var item = base().build();
 
         assertNotNull(item.getId());
-        assertEquals("SKU-1", item.getSku());
         assertEquals("title", item.getTitle());
         assertEquals("desc", item.getDescription());
         assertEquals("ARS", item.getBasePrice().currency());
@@ -41,18 +39,11 @@ class ItemBuilderTest {
 
     @Test
     void validations_requiredFields() {
-        // sku requerido
-        assertThrows(IllegalArgumentException.class, () ->
-                new ItemBuilder()
-                        .title("t").description("d")
-                        .price(new Price("ARS", BigDecimal.ONE)).stock(1).sellerId("S")
-                        .build()
-        );
 
         // title requerido
         assertThrows(IllegalArgumentException.class, () ->
                 new ItemBuilder()
-                        .sku("SKU").description("d")
+                        .description("d")
                         .price(new Price("ARS", BigDecimal.ONE)).stock(1).sellerId("S")
                         .build()
         );
@@ -60,7 +51,7 @@ class ItemBuilderTest {
         // description requerida
         assertThrows(IllegalArgumentException.class, () ->
                 new ItemBuilder()
-                        .sku("SKU").title("t")
+                        .title("t")
                         .price(new Price("ARS", BigDecimal.ONE)).stock(1).sellerId("S")
                         .build()
         );
@@ -68,7 +59,7 @@ class ItemBuilderTest {
         // price requerido
         assertThrows(NullPointerException.class, () ->
                 new ItemBuilder()
-                        .sku("SKU").title("t").description("d")
+                        .title("t").description("d")
                         .stock(1).sellerId("S")
                         .build()
         );
@@ -76,7 +67,7 @@ class ItemBuilderTest {
         // sellerId requerido
         assertThrows(NullPointerException.class, () ->
                 new ItemBuilder()
-                        .sku("SKU").title("t").description("d")
+                        .title("t").description("d")
                         .price(new Price("ARS", BigDecimal.ONE)).stock(1)
                         .build()
         );

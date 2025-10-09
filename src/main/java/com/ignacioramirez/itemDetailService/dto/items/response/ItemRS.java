@@ -11,7 +11,6 @@ import static com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL;
 @JsonInclude(NON_NULL)
 public record ItemRS(
         String id,
-        String sku,
         String title,
         String description,
         PriceRS basePrice,

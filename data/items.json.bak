@@ -1,0 +1,83 @@
+[ {
+  "id" : "f70d30bc-ee4e-4456-89a7-ef2219248c10",
+  "title" : "Item de prueba",
+  "description" : "Descripción del ítem",
+  "price" : {
+    "currency" : "ARS",
+    "amount" : 100.50
+  },
+  "stock" : 10,
+  "sellerId" : "seller-123",
+  "pictures" : [ ],
+  "rating" : {
+    "average" : 0.0,
+    "count" : 0
+  },
+  "condition" : "NEW",
+  "freeShipping" : true,
+  "categories" : [ "Electronics" ],
+  "attributes" : {
+    "brand" : "Test Brand"
+  }
+}, {
+  "id" : "a6ef7b33-7ad1-4fea-b3bb-37dad5d1a4e6",
+  "title" : "Item de prueba",
+  "description" : "Descripción del ítem",
+  "price" : {
+    "currency" : "ARS",
+    "amount" : 100.50
+  },
+  "stock" : 10,
+  "sellerId" : "seller-123",
+  "pictures" : [ ],
+  "rating" : {
+    "average" : 3.8181818181818183,
+    "count" : 11
+  },
+  "condition" : "NEW",
+  "freeShipping" : true,
+  "categories" : [ "Electronics" ],
+  "attributes" : {
+    "brand" : "Test Brand"
+  }
+}, {
+  "id" : "642c6911-1bac-43d8-930c-2b0f9f0efce6",
+  "title" : "Mouse Gamer",
+  "description" : "Ergonómico",
+  "price" : {
+    "currency" : "ARS",
+    "amount" : 9999.90
+  },
+  "stock" : 10,
+  "sellerId" : "SELLER-1",
+  "pictures" : [ ],
+  "rating" : {
+    "average" : 0.0,
+    "count" : 0
+  },
+  "condition" : "NEW",
+  "freeShipping" : true,
+  "categories" : [ ],
+  "attributes" : { }
+}, {
+  "id" : "effea295-ea41-437e-a2e3-d17ad7919f16",
+  "title" : "Item de prueba2",
+  "description" : "Descripción del ítem",
+  "price" : {
+    "currency" : "ARS",
+    "amount" : 100.50
+  },
+  "stock" : 12,
+  "sellerId" : "seller-123",
+  "pictures" : [ ],
+  "rating" : {
+    "average" : 1.0,
+    "count" : 5
+  },
+  "condition" : "NEW",
+  "freeShipping" : true,
+  "categories" : [ "Electronics" ],
+  "attributes" : {
+    "brand" : "Test Brand"
+  }
+} ]

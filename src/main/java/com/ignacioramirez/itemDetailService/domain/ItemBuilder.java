@@ -5,7 +5,6 @@ import java.util.*;
 public class ItemBuilder {
     // Requeridos
     private String id = UUID.randomUUID().toString();
-    private String sku;
     private String title;
     private String description;
     private Price price;
@@ -23,8 +22,12 @@ public class ItemBuilder {
 
     // --------- setters fluidos ----------
     public ItemBuilder id(String id) { this.id = id; return this; }
-    public ItemBuilder sku(String sku) { this.sku = sku; return this; }
-    public ItemBuilder title(String title) { this.title = title; return this; }
+
+    public ItemBuilder title(String title) {
+        this.title = title;
+        return this;
+    }
+
     public ItemBuilder description(String description) { this.description = description; return this; }
     public ItemBuilder price(Price price) { this.price = price; return this; }
     public ItemBuilder stock(int stock) { this.stock = stock; return this; }
@@ -41,7 +44,6 @@ public class ItemBuilder {
     // --------- build con validaciones ----------
     public Item build() {
         if (id == null || id.isBlank()) throw new IllegalArgumentException("id required");
-        if (sku == null || sku.isBlank()) throw new IllegalArgumentException("sku required");
         if (title == null || title.isBlank()) throw new IllegalArgumentException("title required");
         if (description == null || description.isBlank()) throw new IllegalArgumentException("description required");
         Objects.requireNonNull(price, "price");
@@ -55,7 +57,7 @@ public class ItemBuilder {
         var cond = (condition == null) ? Condition.NEW : condition;
 
         return new Item(
-                id, sku, title, description, price, discount, stock, sellerId,
+                id, title, description, price, discount, stock, sellerId,
                 pics, rat, cond, freeShipping, cats, attrs
         );
     }

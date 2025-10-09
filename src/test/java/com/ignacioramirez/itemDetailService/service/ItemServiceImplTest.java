@@ -6,9 +6,11 @@ import com.ignacioramirez.itemDetailService.dto.items.request.CreateItemRQ;
 import com.ignacioramirez.itemDetailService.dto.items.request.PriceRQ;
 import com.ignacioramirez.itemDetailService.dto.items.request.UpdateItemRQ;
 import com.ignacioramirez.itemDetailService.dto.items.response.ItemRS;
+import com.ignacioramirez.itemDetailService.exceptions.ApiException;
 import com.ignacioramirez.itemDetailService.exceptions.ConflictException;
 import com.ignacioramirez.itemDetailService.exceptions.NotFoundException;
 import com.ignacioramirez.itemDetailService.repository.ItemRepository;
+import com.ignacioramirez.itemDetailService.service.utils.Texts;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -17,10 +19,12 @@ import org.mockito.*;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
+import java.text.Normalizer;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 
@@ -43,13 +47,23 @@ class ItemServiceImplTest {
         service = new ItemServiceImpl(repo, clock);
     }
 
+    // Helper de normalización (igual que en el service)
+    private static String normalizeTitle(String s) {
+        if (s == null) return "";
+        String noAccents = Normalizer.normalize(s, Normalizer.Form.NFD)
+                .replaceAll("\\p{M}", "");
+        return noAccents
+                .toLowerCase(Locale.ROOT)
+                .trim()
+                .replaceAll("\\s+", " ");
+    }
+
     // ---------------- create ----------------
 
     @Test
-    @DisplayName("create: conflicto si SKU ya existe")
-    void create_conflictWhenSkuExists() {
+    @DisplayName("create: conflicto si (sellerId, titleNormalized) ya existe")
+    void create_conflictWhenTitleExistsForSeller() {
         var rq = new CreateItemRQ(
-                "SKU-1",
                 "T",
                 "D",
                 new PriceRQ("ARS", new BigDecimal("10.00")),
@@ -61,13 +75,17 @@ class ItemServiceImplTest {
                 Map.of()
         );
 
-        when(repo.findBySku("SKU-1")).thenReturn(Optional.of(new ItemBuilder()
-                .id("X").sku("SKU-1").title("old").description("old")
-                .price(new Price("ARS", new BigDecimal("1.00")))
-                .stock(1).sellerId("S").build()));
+        String expectedNorm = normalizeTitle(rq.title());
+
+        when(repo.findBySellerAndTitleNormalized("SELLER", expectedNorm))
+                .thenReturn(Optional.of(new ItemBuilder()
+                        .id("X").title("old").description("old")
+                        .price(new Price("ARS", new BigDecimal("1.00")))
+                        .stock(1).sellerId("SELLER").build()));
 
         assertThrows(ConflictException.class, () -> service.create(rq));
-        verify(repo).findBySku("SKU-1");
+
+        verify(repo).findBySellerAndTitleNormalized("SELLER", expectedNorm);
         verifyNoMoreInteractions(repo);
     }
 
@@ -75,7 +93,6 @@ class ItemServiceImplTest {
     @DisplayName("create: guarda y retorna ItemRS")
     void create_ok() {
         var rq = new CreateItemRQ(
-                "SKU-1",
                 "T",
                 "D",
                 new PriceRQ("ARS", new BigDecimal("10.00")),
@@ -87,18 +104,21 @@ class ItemServiceImplTest {
                 Map.of("k", "v")
         );
 
-        when(repo.findBySku("SKU-1")).thenReturn(Optional.empty());
+        String expectedNorm = normalizeTitle(rq.title());
+
+        when(repo.findBySellerAndTitleNormalized("SELLER", expectedNorm))
+                .thenReturn(Optional.empty());
+
         ArgumentCaptor<Item> captor = ArgumentCaptor.forClass(Item.class);
         when(repo.save(any(Item.class))).thenAnswer(inv -> inv.<Item>getArgument(0));
 
         ItemRS rs = service.create(rq);
 
-        verify(repo).findBySku("SKU-1");
+        verify(repo).findBySellerAndTitleNormalized("SELLER", expectedNorm);
         verify(repo).save(captor.capture());
         verifyNoMoreInteractions(repo);
 
         Item saved = captor.getValue();
-        assertEquals("SKU-1", saved.getSku());
         assertEquals("T", saved.getTitle());
         assertEquals("D", saved.getDescription());
         assertEquals("ARS", saved.getBasePrice().currency());
@@ -109,8 +129,8 @@ class ItemServiceImplTest {
         assertTrue(saved.isFreeShipping());
 
         assertNotNull(rs);
-        assertEquals("SKU-1", rs.sku());
         assertEquals("T", rs.title());
+        assertEquals("SELLER", rs.sellerId());
     }
 
     // ---------------- getById ----------------
@@ -119,7 +139,7 @@ class ItemServiceImplTest {
     @DisplayName("getById: retorna ItemRS cuando existe")
     void getById_ok() {
         var item = new ItemBuilder()
-                .id("ID1").sku("SKU-1").title("T").description("D")
+                .id("ID1").title("T").description("D")
                 .price(new Price("ARS", new BigDecimal("5.00")))
                 .stock(1).sellerId("S").build();
 
@@ -129,7 +149,7 @@ class ItemServiceImplTest {
 
         assertNotNull(rs);
         assertEquals("ID1", rs.id());
-        assertEquals("SKU-1", rs.sku());
+        assertEquals("T", rs.title());
         verify(repo).findById("ID1");
         verifyNoMoreInteractions(repo);
     }
@@ -149,9 +169,9 @@ class ItemServiceImplTest {
     @Test
     @DisplayName("list: mapea cada Item a ItemRS")
     void list_ok() {
-        var i1 = new ItemBuilder().id("I1").sku("S1").title("T1").description("D1")
+        var i1 = new ItemBuilder().id("I1").title("T1").description("D1")
                 .price(new Price("ARS", new BigDecimal("1.00"))).stock(1).sellerId("S").build();
-        var i2 = new ItemBuilder().id("I2").sku("S2").title("T2").description("D2")
+        var i2 = new ItemBuilder().id("I2").title("T2").description("D2")
                 .price(new Price("ARS", new BigDecimal("2.00"))).stock(2).sellerId("S").build();
 
         when(repo.findAll(2, 5)).thenReturn(List.of(i1, i2));
@@ -171,11 +191,13 @@ class ItemServiceImplTest {
     @DisplayName("update: aplica cambios, valida, guarda y retorna ItemRS")
     void update_ok() {
         var item = new ItemBuilder()
-                .id("ID1").sku("SKU-1").title("Old").description("Old")
+                .id("ID1").title("Old").description("Old")
                 .price(new Price("ARS", new BigDecimal("10.00")))
                 .stock(1).sellerId("S").build();
 
         when(repo.findById("ID1")).thenReturn(Optional.of(item));
+        when(repo.findBySellerAndTitleNormalized(eq("S"), eq(Texts.normalizeTitle("New title"))))
+                .thenReturn(Optional.empty());
         when(repo.save(any(Item.class))).thenAnswer(inv -> inv.getArgument(0));
 
         UpdateItemRQ rq = new UpdateItemRQ(
@@ -186,9 +208,11 @@ class ItemServiceImplTest {
         );
         ItemRS rs = service.update("ID1", rq);
 
-        verify(repo).findById("ID1");
-        verify(repo).save(item);
-        verifyNoMoreInteractions(repo);
+        InOrder inOrder = inOrder(repo);
+        inOrder.verify(repo).findById("ID1");
+        inOrder.verify(repo).findBySellerAndTitleNormalized("S", Texts.normalizeTitle("New title"));
+        inOrder.verify(repo).save(item);
+        inOrder.verifyNoMoreInteractions();
 
         assertEquals("New title", item.getTitle());
         assertEquals("New desc", item.getDescription());
@@ -198,8 +222,9 @@ class ItemServiceImplTest {
 
         assertNotNull(rs);
         assertEquals("ID1", rs.id());
-        assertEquals("SKU-1", rs.sku());
+        assertEquals("New title", rs.title());
     }
+
 
     @Test
     @DisplayName("update: NotFound si no existe el item")
@@ -241,7 +266,7 @@ class ItemServiceImplTest {
     @DisplayName("rate: actualiza rating, guarda y retorna ItemRS")
     void rate_ok() {
         var item = new ItemBuilder()
-                .id("ID1").sku("SKU").title("T").description("D")
+                .id("ID1").title("T").description("D")
                 .price(new Price("ARS", new BigDecimal("10.00")))
                 .stock(1).sellerId("S").build();
 
@@ -276,35 +301,28 @@ class ItemServiceImplTest {
     @Test
     @DisplayName("applyDiscount: setea descuento y guarda (ventana activa)")
     void applyDiscount_ok() {
-        // Tiempo de referencia fijo para el test
         var nowRef = Instant.parse("2025-10-06T12:00:00Z");
-        // Configurar el clock mockeado para devolver nuestro tiempo fijo
         when(clock.instant()).thenReturn(nowRef);
 
-        // Preparar item
         var item = new ItemBuilder()
-                .id("ID1").sku("SKU").title("T").description("D")
+                .id("ID1").title("T").description("D")
                 .price(new Price("ARS", new BigDecimal("100.00")))
                 .stock(1).sellerId("S").build();
 
         when(repo.findById("ID1")).thenReturn(Optional.of(item));
         when(repo.save(any(Item.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        // Descuento activo: empieza ayer, termina mañana
         Instant starts = nowRef.minus(1, ChronoUnit.DAYS);
         Instant ends   = nowRef.plus(1, ChronoUnit.DAYS);
         var rq = new ApplyDiscountRQ("PERCENT", 10L, "10% OFF", starts, ends);
 
-        // Ejecutar
         ItemRS rs = service.applyDiscount("ID1", rq);
 
-        // Verificar interacciones
         verify(repo).findById("ID1");
         verify(repo).save(item);
-        verify(clock).instant(); // Verificar que se usó el clock
+        verify(clock).instant(); // se usa al mapear ItemRS
         verifyNoMoreInteractions(repo);
 
-        // Verificar estado del item
         var active = item.getActiveDiscount(nowRef);
         assertTrue(active.isPresent());
         var d = active.get();
@@ -314,7 +332,6 @@ class ItemServiceImplTest {
         assertEquals(starts, d.startsAt());
         assertEquals(ends, d.endsAt());
 
-        // Verificar respuesta
         assertNotNull(rs);
         assertTrue(rs.hasActiveDiscount(), "Debe tener descuento activo");
         assertNotNull(rs.discount());
@@ -335,32 +352,31 @@ class ItemServiceImplTest {
     }
 
     @Test
-    @DisplayName("applyDiscount: tipo inválido -> IllegalArgumentException (valueOf)")
-    void applyDiscount_invalidType_throws() {
+    @DisplayName("applyDiscount: tipo inválido -> ApiException ENUM_INVALID")
+    void applyDiscount_invalidType_throwsApiException() {
         when(repo.findById("ID1")).thenReturn(Optional.of(new ItemBuilder()
-                .id("ID1").sku("SKU").title("T").description("D")
+                .id("ID1").title("T").description("D")
                 .price(new Price("ARS", new BigDecimal("1.00")))
                 .stock(1).sellerId("S").build()));
 
         var rq = new ApplyDiscountRQ("WHATEVER", 10L, "x", Instant.now(), Instant.now().plus(1, ChronoUnit.DAYS));
 
-        assertThrows(IllegalArgumentException.class, () -> service.applyDiscount("ID1", rq));
+        assertThrows(ApiException.class, () -> service.applyDiscount("ID1", rq));
         verify(repo).findById("ID1");
         verifyNoMoreInteractions(repo);
     }
 
     @Test
-    @DisplayName("applyDiscount: inputs inválidos del Discount (p.ej. percent > 100) -> IllegalArgumentException")
-    void applyDiscount_invalidDiscountInputs_throws() {
+    @DisplayName("applyDiscount: inputs inválidos (p.ej. percent > 100) -> ApiException INVALID_DISCOUNT")
+    void applyDiscount_invalidDiscountInputs_throwsApiException() {
         when(repo.findById("ID1")).thenReturn(Optional.of(new ItemBuilder()
-                .id("ID1").sku("SKU").title("T").description("D")
+                .id("ID1").title("T").description("D")
                 .price(new Price("ARS", new BigDecimal("1.00")))
                 .stock(1).sellerId("S").build()));
 
-        // percent 150 fuera de rango
         var rq = new ApplyDiscountRQ("PERCENT", 150L, "x", Instant.now(), Instant.now().plus(1, ChronoUnit.DAYS));
 
-        assertThrows(IllegalArgumentException.class, () -> service.applyDiscount("ID1", rq));
+        assertThrows(ApiException.class, () -> service.applyDiscount("ID1", rq));
         verify(repo).findById("ID1");
         verifyNoMoreInteractions(repo);
     }
@@ -372,7 +388,7 @@ class ItemServiceImplTest {
     void clearDiscount_ok() {
         var nowRef = Instant.parse("2025-10-06T00:00:00Z");
         var item = new ItemBuilder()
-                .id("ID1").sku("SKU").title("T").description("D")
+                .id("ID1").title("T").description("D")
                 .price(new Price("ARS", new BigDecimal("100.00")))
                 .stock(1).sellerId("S")
                 .discount(new Discount(

@@ -14,7 +14,6 @@ import java.nio.file.*;
 import java.util.*;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
-//TODO revisar concurrencia
 @Repository
 public class FileItemRepository implements ItemRepository {
 
@@ -25,11 +24,9 @@ public class FileItemRepository implements ItemRepository {
     private final Path tmpPath;
     private final Path bakPath;
 
-    // índices en memoria
     private final Map<String, Item> byId = new HashMap<>();
-    private final Map<String, String> bySku = new HashMap<>();
+    private final Map<String, String> bySellerAndTitleNorm = new HashMap<>();
 
-    // lock RW para concurrencia
     private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
 
     public FileItemRepository(
@@ -52,18 +49,22 @@ public class FileItemRepository implements ItemRepository {
 
             if (!Files.exists(dataPath)) {
                 LOGGER.info("Data file does not exist, creating initial empty file");
-                persist(); // crea archivo vacío inicial
+                persist();
                 return;
             }
 
-            // Cargar lista desde disco
             LOGGER.info("Loading items from '{}'", dataPath);
             List<Item> items = mapper.readValue(Files.newBufferedReader(dataPath), new TypeReference<>() {});
             byId.clear();
-            bySku.clear();
+            bySellerAndTitleNorm.clear();
+
             for (Item it : items) {
                 byId.put(it.getId(), it);
-                bySku.put(it.getSku(), it.getId());
+                if (it.getSellerId() != null && !it.getSellerId().isBlank()
+                        && it.getTitleNormalized() != null && !it.getTitleNormalized().isBlank()) {
+                    String key = it.getSellerId() + "||" + it.getTitleNormalized();
+                    bySellerAndTitleNorm.put(key, it.getId());
+                }
             }
             LOGGER.info("Repository initialized successfully with {} items", byId.size());
         } catch (Exception e) {
@@ -81,10 +82,14 @@ public class FileItemRepository implements ItemRepository {
                 List<Item> items = mapper.readValue(Files.newBufferedReader(bakPath), new TypeReference<>() {});
                 LOGGER.info("Restored {} items from backup", items.size());
                 byId.clear();
-                bySku.clear();
+                bySellerAndTitleNorm.clear();
                 for (Item it : items) {
                     byId.put(it.getId(), it);
-                    bySku.put(it.getSku(), it.getId());
+                    if (it.getSellerId() != null && !it.getSellerId().isBlank()
+                            && it.getTitleNormalized() != null && !it.getTitleNormalized().isBlank()) {
+                        String key = it.getSellerId() + "||" + it.getTitleNormalized();
+                        bySellerAndTitleNorm.put(key, it.getId());
+                    }
                 }
                 persist();
                 return;
@@ -95,7 +100,7 @@ public class FileItemRepository implements ItemRepository {
         }
         LOGGER.warn("Resetting repository to empty state");
         byId.clear();
-        bySku.clear();
+        bySellerAndTitleNorm.clear();
         persist();
     }
 
@@ -104,7 +109,6 @@ public class FileItemRepository implements ItemRepository {
             LOGGER.debug("Persisting {} items to disk", byId.size());
             Files.createDirectories(dataPath.getParent());
 
-            // 1. Escribir a archivo temporal
             try (var w = Files.newBufferedWriter(tmpPath,
                     StandardOpenOption.CREATE,
                     StandardOpenOption.TRUNCATE_EXISTING)) {
@@ -112,10 +116,8 @@ public class FileItemRepository implements ItemRepository {
                         .writeValue(w, new ArrayList<>(byId.values()));
             }
 
-            // 2. Copiar el temporal al backup (el contenido NUEVO)
             Files.copy(tmpPath, bakPath, StandardCopyOption.REPLACE_EXISTING);
 
-            // 3. Mover temporal a principal (atómico)
             Files.move(tmpPath, dataPath,
                     StandardCopyOption.ATOMIC_MOVE,
                     StandardCopyOption.REPLACE_EXISTING);
@@ -143,14 +145,12 @@ public class FileItemRepository implements ItemRepository {
     }
 
     @Override
-    public Optional<Item> findBySku(String sku) {
-        LOGGER.debug("Finding item by sku='{}'", sku);
+    public Optional<Item> findBySellerAndTitleNormalized(String sellerId, String titleNormalized) {
+        LOGGER.debug("Finding by seller='{}' and titleNormalized='{}'", sellerId, titleNormalized);
         lock.readLock().lock();
         try {
-            String id = bySku.get(sku);
-            Optional<Item> result = id == null ? Optional.empty() : Optional.ofNullable(byId.get(id));
-            LOGGER.debug("Item with sku='{}' {}", sku, result.isPresent() ? "found" : "not found");
-            return result;
+            String id = bySellerAndTitleNorm.get(sellerId + "||" + titleNormalized);
+            return id == null ? Optional.empty() : Optional.ofNullable(byId.get(id));
         } finally {
             lock.readLock().unlock();
         }
@@ -167,8 +167,13 @@ public class FileItemRepository implements ItemRepository {
         lock.readLock().lock();
         try {
             var items = new ArrayList<>(byId.values());
-            items.sort(Comparator.comparing(Item::getSku)
-                    .thenComparing(Item::getId));
+            items.sort(
+                    Comparator.comparing(
+                            Item::getTitleNormalized,
+                            Comparator.nullsLast(String::compareTo)
+                    ).thenComparing(Item::getId)
+            );
+
             int from = Math.min(page * size, items.size());
             int to = Math.min(from + size, items.size());
             List<Item> result = items.subList(from, to);
@@ -183,29 +188,44 @@ public class FileItemRepository implements ItemRepository {
     public Item save(Item item) {
         Objects.requireNonNull(item, "item");
         String id = item.getId();
-        String sku = item.getSku();
 
-        LOGGER.info("Saving item with id='{}', sku='{}'", id, sku);
+        LOGGER.info("Saving item with id='{}'", id);
 
         if (id == null || id.isBlank()) {
             LOGGER.error("Attempted to save item with null or blank id");
             throw new IllegalArgumentException("Item id is required");
         }
-        if (sku == null || sku.isBlank()) {
-            LOGGER.error("Attempted to save item with null or blank sku");
-            throw new IllegalArgumentException("Item sku is required");
+        if (item.getSellerId() == null || item.getSellerId().isBlank()) {
+            LOGGER.error("Attempted to save item with null or blank sellerId");
+            throw new IllegalArgumentException("Item sellerId is required");
         }
+        if (item.getTitleNormalized() == null || item.getTitleNormalized().isBlank()) {
+            LOGGER.error("Attempted to save item with null or blank titleNormalized");
+            throw new IllegalArgumentException("Item titleNormalized is required");
+        }
+
+        String newKey = keyOf(item.getSellerId(), item.getTitleNormalized());
 
         lock.writeLock().lock();
         try {
-            String existingIdForSku = bySku.get(sku);
-            if (existingIdForSku != null && !existingIdForSku.equals(id)) {
-                LOGGER.error("SKU '{}' already exists for a different item (id='{}')", sku, existingIdForSku);
-                throw new IllegalStateException("SKU already exists: " + sku);
+
+            String existingId = bySellerAndTitleNorm.get(newKey);
+            if (existingId != null && !existingId.equals(id)) {
+                LOGGER.warn("Duplicate key for seller+title: '{}' (existingId='{}', newId='{}')",
+                        newKey, existingId, id);
+                throw new IllegalStateException("Another item already exists with the same sellerId and titleNormalized");
             }
 
-            byId.put(id, item);
-            bySku.put(sku, id);
+            Item previous = byId.put(id, item);
+            if (previous != null) {
+                String oldKey = keyOf(previous.getSellerId(), previous.getTitleNormalized());
+                if (!oldKey.equals(newKey)) {
+                    bySellerAndTitleNorm.remove(oldKey, id);
+                }
+            }
+
+            bySellerAndTitleNorm.put(newKey, id);
+
             persist();
             LOGGER.info("Item saved successfully with id='{}'", id);
             return item;
@@ -214,6 +234,7 @@ public class FileItemRepository implements ItemRepository {
         }
     }
 
+
     @Override
     public boolean deleteById(String id) {
         LOGGER.info("Deleting item with id='{}'", id);
@@ -221,7 +242,8 @@ public class FileItemRepository implements ItemRepository {
         try {
             Item removed = byId.remove(id);
             if (removed != null) {
-                bySku.remove(removed.getSku());
+                String key = removed.getSellerId() + "||" + removed.getTitleNormalized();
+                bySellerAndTitleNorm.remove(key, id);
                 persist();
                 LOGGER.info("Item with id='{}' deleted successfully", id);
                 return true;
@@ -243,5 +265,9 @@ public class FileItemRepository implements ItemRepository {
         } finally {
             lock.readLock().unlock();
         }
+    }
+
+    private String keyOf(String sellerId, String titleNormalized) {
+        return sellerId + "||" + titleNormalized;
     }
 }

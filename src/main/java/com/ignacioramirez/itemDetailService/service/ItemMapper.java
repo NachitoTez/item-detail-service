@@ -18,7 +18,6 @@ public class ItemMapper {
         String condition = Objects.requireNonNull(rq.condition(), "condition").toUpperCase(Locale.ROOT);
 
         return new ItemBuilder()
-                .sku(rq.sku())
                 .title(rq.title())
                 .description(rq.description())
                 .price(new Price(rq.price().currency().toUpperCase(), rq.price().amount()))
@@ -72,7 +71,6 @@ public class ItemMapper {
 
         return new ItemRS(
                 item.getId(),
-                item.getSku(),
                 item.getTitle(),
                 item.getDescription(),
                 basePrice,

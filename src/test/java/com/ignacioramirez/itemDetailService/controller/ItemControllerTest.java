@@ -46,7 +46,6 @@ class ItemControllerTest {
 
         String body = """
       {
-        "sku":"SKU-1",
         "title":"Lightsaber",
         "description":"Blue saber",
         "price": {
@@ -116,22 +115,6 @@ class ItemControllerTest {
         verifyNoMoreInteractions(service);
     }
 
-    @Test
-    @DisplayName("GET /items con sku no vacío: llama list(0,1) y filtra")
-    void list_withSku_filters() throws Exception {
-        ItemRS rs1 = Mockito.mock(ItemRS.class, Answers.RETURNS_DEEP_STUBS);
-        ItemRS rs2 = Mockito.mock(ItemRS.class, Answers.RETURNS_DEEP_STUBS);
-        when(rs1.sku()).thenReturn("ABC-1");
-        when(rs2.sku()).thenReturn("XYZ-9");
-        when(service.list(0, 1)).thenReturn(List.of(rs1, rs2));
-
-        mockMvc.perform(get("/items").param("sku", "ABC-1"))
-                .andExpect(status().isOk())
-                .andExpect(content().contentType("application/json"));
-
-        verify(service).list(0, 1);
-        verifyNoMoreInteractions(service);
-    }
 
     // ---------- PUT /items/{id} ----------
     @Test

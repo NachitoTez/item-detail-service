@@ -24,7 +24,6 @@ class ItemMapperTest {
     @DisplayName("toNewDomain: normaliza currency/condition en mayúsculas y mapea campos básicos")
     void toNewDomain_normalizesAndMaps() {
         CreateItemRQ rq = new CreateItemRQ(
-                "SKU-1",
                 "Lightsaber",
                 "Blue saber",
                 new PriceRQ("ars", new BigDecimal("1000.00")),
@@ -39,7 +38,6 @@ class ItemMapperTest {
         Item item = ItemMapper.toNewDomain(rq);
 
         assertNotNull(item);
-        assertEquals("SKU-1", item.getSku());
         assertEquals("Lightsaber", item.getTitle());
         assertEquals("Blue saber", item.getDescription());
         assertEquals("ARS", item.getBasePrice().currency());
@@ -56,7 +54,6 @@ class ItemMapperTest {
     @DisplayName("toNewDomain: mapea correctamente categories y attributes cuando están presentes")
     void toNewDomain_withCategoriesAndAttributes() {
         CreateItemRQ rq = new CreateItemRQ(
-                "SKU-2",
                 "Item",
                 "Description",
                 new PriceRQ("USD", new BigDecimal("99.99")),
@@ -84,7 +81,6 @@ class ItemMapperTest {
     void applyUpdate_updatesAllFields() {
         Item item = new ItemBuilder()
                 .id("ID1")
-                .sku("SKU-1")
                 .title("Old title")
                 .description("Old desc")
                 .price(new Price("ARS", new BigDecimal("100.00")))
@@ -117,7 +113,6 @@ class ItemMapperTest {
     void applyUpdate_updatesOnlyTitle() {
         Item item = new ItemBuilder()
                 .id("ID1")
-                .sku("SKU-1")
                 .title("Old title")
                 .description("Old desc")
                 .price(new Price("ARS", new BigDecimal("100.00")))
@@ -142,7 +137,6 @@ class ItemMapperTest {
     void applyUpdate_updatesOnlyDescription() {
         Item item = new ItemBuilder()
                 .id("ID1")
-                .sku("SKU-1")
                 .title("Title")
                 .description("Old desc")
                 .price(new Price("USD", new BigDecimal("50.00")))
@@ -167,7 +161,6 @@ class ItemMapperTest {
     void applyUpdate_updatesOnlyPrice() {
         Item item = new ItemBuilder()
                 .id("ID1")
-                .sku("SKU-1")
                 .title("Title")
                 .description("Desc")
                 .price(new Price("ARS", new BigDecimal("100.00")))
@@ -192,7 +185,6 @@ class ItemMapperTest {
     void applyUpdate_updatesOnlyStock() {
         Item item = new ItemBuilder()
                 .id("ID1")
-                .sku("SKU-1")
                 .title("Title")
                 .description("Desc")
                 .price(new Price("ARS", new BigDecimal("100.00")))
@@ -217,7 +209,6 @@ class ItemMapperTest {
     void applyUpdate_noChangesWhenAllFieldsNull() {
         Item item = new ItemBuilder()
                 .id("ID1")
-                .sku("SKU-1")
                 .title("Original title")
                 .description("Original desc")
                 .price(new Price("ARS", new BigDecimal("100.00")))
@@ -242,7 +233,6 @@ class ItemMapperTest {
     void applyUpdate_updatesPartialFields() {
         Item item = new ItemBuilder()
                 .id("ID1")
-                .sku("SKU-1")
                 .title("Old title")
                 .description("Old desc")
                 .price(new Price("ARS", new BigDecimal("100.00")))
@@ -270,7 +260,6 @@ class ItemMapperTest {
     void toRS_withoutDiscount() {
         Item item = new ItemBuilder()
                 .id("ID1")
-                .sku("SKU-1")
                 .title("T")
                 .description("D")
                 .price(new Price("ARS", new BigDecimal("999.99")))
@@ -288,7 +277,6 @@ class ItemMapperTest {
 
         assertNotNull(rs);
         assertEquals("ID1", rs.id());
-        assertEquals("SKU-1", rs.sku());
         assertEquals("T", rs.title());
         assertEquals("D", rs.description());
 
@@ -329,7 +317,6 @@ class ItemMapperTest {
 
         Item item = new ItemBuilder()
                 .id("ID2")
-                .sku("SKU-2")
                 .title("T")
                 .description("D")
                 .price(base)
@@ -380,7 +367,6 @@ class ItemMapperTest {
 
         Item item = new ItemBuilder()
                 .id("ID3")
-                .sku("SKU-3")
                 .title("Title")
                 .description("Desc")
                 .price(base)
@@ -409,7 +395,7 @@ class ItemMapperTest {
     void toRS_futureDiscount_notExposed() {
         Price base = new Price("USD", new BigDecimal("50.00"));
         Item item = new ItemBuilder()
-                .id("FUT-1").sku("SKU-F").title("T").description("D")
+                .id("FUT-1").title("T").description("D")
                 .price(base).stock(1).sellerId("S").build();
 
         Instant starts = Instant.parse("2025-10-10T00:00:00Z"); // futuro
@@ -430,7 +416,7 @@ class ItemMapperTest {
     void toRS_expiredDiscount_notExposed() {
         Price base = new Price("USD", new BigDecimal("80.00"));
         Item item = new ItemBuilder()
-                .id("EXP-1").sku("SKU-E").title("T").description("D")
+                .id("EXP-1").title("T").description("D")
                 .price(base).stock(1).sellerId("S").build();
 
         Instant starts = Instant.parse("2025-10-01T00:00:00Z");

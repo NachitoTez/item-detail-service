@@ -6,10 +6,9 @@ import java.util.List;
 import java.util.Map;
 
 public record CreateItemRQ(
-        @NotBlank String sku,
         @NotBlank String title,
         @NotBlank String description,
-        @Valid @NotNull PriceRQ price,  // ← Ahora es un objeto
+        @Valid @NotNull PriceRQ price,
         @PositiveOrZero int stock,
         @NotBlank String sellerId,
         @NotNull String condition,

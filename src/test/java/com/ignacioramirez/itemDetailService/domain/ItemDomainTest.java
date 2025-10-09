@@ -20,7 +20,6 @@ class ItemDomainTest {
     private static Item newItem() {
         return new ItemBuilder()
                 .id("ID")
-                .sku("SKU-1")
                 .title("t")
                 .description("d")
                 .price(new Price("ARS", money("10000")))
@@ -41,7 +40,7 @@ class ItemDomainTest {
     @Test
     void currentPrice_percentDiscount() {
         var item = new ItemBuilder()
-                .id("1").sku("SKU-1").title("t").description("d")
+                .id("1").title("t").description("d")
                 .price(new Price("ARS", money("10000")))
                 .stock(1).sellerId("S")
                 .build();
@@ -56,7 +55,7 @@ class ItemDomainTest {
     @Test
     void currentPrice_amountDiscount_notBelowZero() {
         var item = new ItemBuilder()
-                .id("1").sku("SKU-1").title("t").description("d")
+                .id("1").title("t").description("d")
                 .price(new Price("ARS", money("5000")))
                 .stock(1).sellerId("S")
                 .build();
@@ -70,7 +69,7 @@ class ItemDomainTest {
     @Test
     void rating_updatesAverageAndCount() {
         var item = new ItemBuilder()
-                .id("1").sku("SKU-1").title("t").description("d")
+                .id("1").title("t").description("d")
                 .price(new Price("ARS", money("5000")))
                 .stock(1).sellerId("S")
                 .build();
@@ -86,7 +85,7 @@ class ItemDomainTest {
         var now = Instant.parse("2025-01-01T00:00:00Z");
 
         var item = new ItemBuilder()
-                .id("1").sku("SKU-1").title("t").description("d")
+                .id("1").title("t").description("d")
                 .price(new Price("ARS", money("10000")))
                 .stock(1).sellerId("S")
                 .build();
@@ -108,7 +107,7 @@ class ItemDomainTest {
         var end = Instant.parse("2025-01-02T00:00:00Z");
 
         var item = new ItemBuilder()
-                .id("1").sku("SKU-1").title("t").description("d")
+                .id("1").title("t").description("d")
                 .price(new Price("ARS", money("10000")))
                 .stock(1).sellerId("S")
                 .build();
@@ -125,7 +124,7 @@ class ItemDomainTest {
     @Test
     void percent_zeroAndHundred() {
         var item = new ItemBuilder()
-                .id("1").sku("SKU-1").title("t").description("d")
+                .id("1").title("t").description("d")
                 .price(new Price("ARS", money("10000")))
                 .stock(1).sellerId("S")
                 .build();
@@ -154,7 +153,7 @@ class ItemDomainTest {
     @Test
     void amount_equalToBase_becomesZero() {
         var item = new ItemBuilder()
-                .id("1").sku("SKU-1").title("t").description("d")
+                .id("1").title("t").description("d")
                 .price(new Price("ARS", money("10000")))
                 .stock(1).sellerId("S")
                 .build();
@@ -166,7 +165,7 @@ class ItemDomainTest {
     @Test
     void clearDiscount_restoresBasePrice() {
         var item = new ItemBuilder()
-                .id("1").sku("SKU-1").title("t").description("d")
+                .id("1").title("t").description("d")
                 .price(new Price("ARS", money("10000")))
                 .stock(1).sellerId("S")
                 .build();
@@ -181,7 +180,7 @@ class ItemDomainTest {
     @Test
     void stock_validations() {
         var item = new ItemBuilder()
-                .id("1").sku("SKU-1").title("t").description("d")
+                .id("1").title("t").description("d")
                 .price(new Price("ARS", money("10000")))
                 .stock(1).sellerId("S")
                 .build();
@@ -193,7 +192,7 @@ class ItemDomainTest {
     @Test
     void titleAndDescription_validations() {
         var item = new ItemBuilder()
-                .id("1").sku("SKU-1").title("t").description("d")
+                .id("1").title("t").description("d")
                 .price(new Price("ARS", money("10000")))
                 .stock(1).sellerId("S")
                 .build();
@@ -206,7 +205,7 @@ class ItemDomainTest {
     @Test
     void collections_areUnmodifiable() {
         var item = new ItemBuilder()
-                .id("1").sku("SKU-1").title("t").description("d")
+                .id("1").title("t").description("d")
                 .price(new Price("ARS", money("10000")))
                 .stock(1).sellerId("S")
                 .categories(List.of("a", "b"))
@@ -297,7 +296,7 @@ class ItemDomainTest {
     @Test
     void removeCategory_returnsIfRemoved() {
         var item = new ItemBuilder()
-                .id("X").sku("SKU-X").title("t").description("d")
+                .id("X").title("t").description("d")
                 .price(new Price("ARS", money("100")))
                 .stock(1).sellerId("S")
                 .categories(List.of("A", "B"))
@@ -311,7 +310,7 @@ class ItemDomainTest {
     @Test
     void replaceCategories_replacesAll_andValidatesEach() {
         var item = new ItemBuilder()
-                .id("X").sku("SKU-X").title("t").description("d")
+                .id("X").title("t").description("d")
                 .price(new Price("ARS", money("100")))
                 .stock(1).sellerId("S")
                 .categories(List.of("A"))
@@ -327,7 +326,7 @@ class ItemDomainTest {
     @Test
     void replaceCategories_withNull_clearsToEmpty() {
         var item = new ItemBuilder()
-                .id("X").sku("SKU-X").title("t").description("d")
+                .id("X").title("t").description("d")
                 .price(new Price("ARS", money("100")))
                 .stock(1).sellerId("S")
                 .categories(List.of("A", "B"))
@@ -351,7 +350,7 @@ class ItemDomainTest {
     @Test
     void putAttribute_blankValue_removesKey() {
         var item = new ItemBuilder()
-                .id("X").sku("SKU-X").title("t").description("d")
+                .id("X").title("t").description("d")
                 .price(new Price("ARS", money("100")))
                 .stock(1).sellerId("S")
                 .attributes(Map.of("k", "v"))

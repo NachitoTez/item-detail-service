@@ -71,9 +71,8 @@ class GlobalExceptionHandlerIntegrationTest {
     }
 
     @Test
-    void whenSkuAlreadyExists_thenReturns409WithProblemDetail() throws Exception {
+    void whenTitleAlreadyExists_thenReturns409WithProblemDetail() throws Exception {
         var request = new CreateItemRQ(
-                "LAPTOP-001",
                 "Laptop Dell XPS",
                 "High performance laptop",
                 new PriceRQ("ARS", new BigDecimal("1500.00")),
@@ -86,7 +85,7 @@ class GlobalExceptionHandlerIntegrationTest {
         );
 
         Mockito.when(itemService.create(any(CreateItemRQ.class)))
-                .thenThrow(new ConflictException("SKU already exists"));
+                .thenThrow(new ConflictException("Title already exists"));
 
         mockMvc.perform(post("/items")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -95,7 +94,7 @@ class GlobalExceptionHandlerIntegrationTest {
                 .andExpect(content().contentTypeCompatibleWith("application/problem+json"))
                 .andExpect(jsonPath("$.status").value(409))
                 .andExpect(jsonPath("$.title").value("Conflict"))
-                .andExpect(jsonPath("$.detail").value("SKU already exists"))
+                .andExpect(jsonPath("$.detail").value("Title already exists"))
                 .andExpect(jsonPath("$.code").value("CONFLICT"))
                 .andExpect(jsonPath("$.type").doesNotExist());
     }
@@ -106,7 +105,6 @@ class GlobalExceptionHandlerIntegrationTest {
     void whenCreateItemWithInvalidBody_thenReturns400WithValidationErrors() throws Exception {
         String invalidRequest = """
         {
-          "sku": "",
           "title": "Test",
           "description": "Test description",
           "price": {
@@ -130,7 +128,7 @@ class GlobalExceptionHandlerIntegrationTest {
                 .andExpect(jsonPath("$.detail").value("One or more fields have invalid values"))
                 .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
                 .andExpect(jsonPath("$.errors").isArray())
-                .andExpect(jsonPath("$.errors[*].field", hasItems("sku", "price.amount")))
+                .andExpect(jsonPath("$.errors[*].field", hasItems("price.amount")))
                 .andExpect(jsonPath("$.errors[*].message").exists())
                 .andExpect(jsonPath("$.errors[*].rejectedValue").exists());
     }
@@ -157,7 +155,6 @@ class GlobalExceptionHandlerIntegrationTest {
     void whenSendInvalidJsonFormat_thenReturns400WithDetailedError() throws Exception {
         String body = """
         {
-          "sku": "X",
           "title": "X",
           "description": "X",
           "price": {
@@ -204,7 +201,6 @@ class GlobalExceptionHandlerIntegrationTest {
     void whenSendMalformedJson_thenReturns400() throws Exception {
         String malformedJson = """
         {
-          "sku": "TEST",
           "title": "Test"
           "description": "Missing comma"
         }
@@ -293,7 +289,6 @@ class GlobalExceptionHandlerIntegrationTest {
     void whenMissingFieldInJson_thenReturns400WithMissingFieldError() throws Exception {
         String bodyMissingTitle = """
         {
-          "sku": "SKU-123",
           "description": "Test description",
           "price": {
             "currency": "ARS",
@@ -320,7 +315,6 @@ class GlobalExceptionHandlerIntegrationTest {
     void whenMultipleValidationErrors_thenReturnsAllErrors() throws Exception {
         String invalidRequest = """
         {
-          "sku": "",
           "title": "",
           "description": "",
           "price": {
@@ -349,7 +343,6 @@ class GlobalExceptionHandlerIntegrationTest {
 
     private CreateItemRQ validCreateItemRQ() {
         return new CreateItemRQ(
-                "SKU-1",
                 "Title",
                 "Desc",
                 new PriceRQ("ARS", new BigDecimal("1.00")),

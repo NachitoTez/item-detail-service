@@ -9,11 +9,13 @@ import java.math.RoundingMode;
 import java.time.Instant;
 import java.util.*;
 
+import static com.ignacioramirez.itemDetailService.service.utils.Texts.normalizeTitle;
+
 public class Item {
 
     private final String id;
-    private final String sku;
     private String title;
+    private final String titleNormalized;
     private String description;
     @JsonProperty("price")
     private Price price;
@@ -29,7 +31,6 @@ public class Item {
 
     @JsonCreator
     Item(@JsonProperty("id") String id,
-         @JsonProperty("sku") String sku,
          @JsonProperty("title") String title,
          @JsonProperty("description") String description,
          @JsonProperty("price") Price price,
@@ -43,8 +44,8 @@ public class Item {
          @JsonProperty("categories") List<String> categories,
          @JsonProperty("attributes") Map<String, String> attributes) {
         this.id = id;
-        this.sku = sku;
         this.title = title;
+        this.titleNormalized = normalizeTitle(title);
         this.description = description;
         this.price = price;
         this.discount = discount;
@@ -198,9 +199,11 @@ public class Item {
 
     // --------- Getters básicos ----------
     public String getId() { return id; }
-    public String getSku() { return sku; }
     public String getTitle() { return title; }
     public String getDescription() { return description; }
+    @JsonIgnore
+    public String getTitleNormalized() { return titleNormalized; }
+
     @JsonIgnore
     public Optional<Discount> getDiscountOptional() {
         return Optional.ofNullable(discount);
@@ -220,7 +223,6 @@ public class Item {
 
     public void validate() {
         Objects.requireNonNull(id, "id");
-        Objects.requireNonNull(sku, "sku");
         Objects.requireNonNull(title, "title");
         Objects.requireNonNull(description, "description");
         Objects.requireNonNull(price, "price");
